@@ -1,0 +1,480 @@
+---
+title: "Central African Republic Exports Time Series Analysis"
+author: "Siddharth Das, Martin Topacio, Christine Li"
+date: "3/16/24"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+# Course: STA 137 taught by Professor Xiucai Ding
+
+## Data Set Description - (Complete Step 1 of Final project.pdf: Include background information)
+
+
+
+## Data Preparation
+
+```{r}
+# Load data
+load("finalproject.rdata")
+
+# View data
+head(finalPro_data)
+```
+
+```{r}
+# Access exports variable
+exports <- finalPro_data$Exports
+
+# Access year variable
+year <- finalPro_data$Year
+
+# Create time series object - might be necessary for later steps
+exports <- ts(exports, start = year[1], end = year[length(year)])
+
+# Print time series object
+print(exports)
+```
+
+## General procedure to build ARIMA
+
+#### Step 1: Plot the data and identify any unusual observations.
+
+```{r}
+# Utilize plot.ts() to visualize exports time series object
+plot.ts(exports, xlab = "Time", ylab = "Exports", main = "Central African Republic Exports Over Time")
+```
+
+```{r}
+# Prepare plot layout with 1 row and 2 columns
+par(mfrow = c(1,2))
+
+# Visualize ACF and PACF to determine if data is stationary
+acf(exports)
+pacf(exports)
+```
+ACF is decreasing in a linear trend. We can also see i stops lag at 1 showing non stationary. We now want to transform it into stationary form.
+
+```{r, message = FALSE, warning = FALSE}
+# Load package for ADF & KPSS test
+library(tseries)
+
+#Conduct ADF to find if time series is stationary
+adf.test(exports)
+
+# Confirm ADF test result with KPSS test
+kpss.test(exports)
+```
+The Augmented Dickey-Fuller Test resulted in p-value = .1006, which is bigger than the assumed value of alpha = .05. Thus, Augmented Dickey-Fuller Test supports the conclusion that exports is a non-stationary time series.
+
+Furthermore, The KPSS Test for Level Stationarity resulted in p-value = .01, which is less than the assumed value of alpha = .05. Hence, The KPSS Test for Level Stationarity also supports the conclusion that exports is a non-stationary time series.
+
+```{r}
+# Check for heteroskedasticity (non-constant variance)
+
+# Checking through residual plots of linear regression
+model1 = lm(exports ~ year)
+summary(model1)
+par(mfrow=c(2,2))
+plot(model1)
+
+#We don't need to see through linear regression, Arima to check for heteroskedasticity. We can check through the plots you created.
+# If there is absolutely no heteroskedasticity, you should see a completely random, equal distribution of points throughout the range of X axis and a flat red line.Ours is not neccasrily flat hence we can claim that there's heteroskedasticity. Our data points are also very spread out.
+```
+
+
+#### Step 2: If necessary, transform the data (using a Box-Cox transformation) to stabilize the variance.
+
+We will try Box-Cox, log, and square root transformations to find the optimal method for stabilized variance.
+```{r}
+# Cite Source: https://datascienceplus.com/time-series-analysis-in-r-part-2-time-series-transformations/
+
+# Load the forecast package for Box-Cox transformation
+library("forecast")
+
+# Prepare 2 x 3 grid layout to display 5 plots
+par(mfrow = c(2, 3))
+
+# Plot original times series
+plot.ts(exports, xlab = "Time", ylab = "Exports", main = "Original Time Series")
+
+# Box-Cox transformation with lambda = 0.5
+exports_box_cox_half <- BoxCox(exports, lambda = 0.5)
+plot.ts(exports_box_cox_half, xlab = "Time", ylab = "Exports", main = "Box-Cox Lambda = 0.5")
+
+# Box-Cox transformation with optimal lambda
+lambda <- BoxCox.lambda(exports)
+exports_box_cox <- BoxCox(exports, lambda = lambda)
+plot.ts(exports_box_cox, xlab = "Time", ylab = "Exports", main = "Box-Cox Optimal Lambda")
+
+# Log transformation
+exports_log <- log(exports)
+plot.ts(exports_log, xlab = "Time", ylab = "Exports", main = "Log Transformation")
+
+# Square root transformation
+exports_sqrt <- sqrt(exports)
+model1 = lm(exports ~ year)
+plot.ts(exports_sqrt, xlab = "Time", ylab = "Exports", main = "Square Root Transformation")
+```
+```{r}
+# Print lambda value for Box-Cox transformation with optimal lambda
+print(paste("The lambda value for Box-Cox transformation with optimal lambda is", lambda))
+```
+
+```{r}
+# Prepare 2 x 2 grid layout to display 4 plots
+par(mfrow = c(2, 2))
+
+# Determine and fit ARIMA model to exports
+exports_arima_model <- auto.arima(exports)
+# Extract residuals from the ARIMA model
+residuals <- residuals(exports_arima_model)
+# Plot ACF of residuals
+acf(residuals, main = "Arima Exports Residuals")
+# Plot PACF of residuals
+pacf(residuals, main = "Arima Exports Residuals")
+
+# Determine and fit ARIMA model to exports
+exports_box_cox_arima_model <- auto.arima(exports_box_cox)
+# Extract residuals from the ARIMA model
+residuals <- residuals(exports_box_cox_arima_model)
+# Plot ACF of residuals
+acf(residuals, main = "Arima Box-Cox Residuals")
+# Plot PACF of residuals
+pacf(residuals, main = "Arima Box-Cox Residuals")
+```
+
+```{r}
+# Prepare 1 x 2 grid layout to display 2 plots
+par(mfrow = c(1, 2))
+
+# Determine and fit ARIMA model to exports
+exports_log_arima_model <- auto.arima(exports_log)
+# Extract residuals from the ARIMA model
+residuals <- residuals(exports_log_arima_model)
+# Plot ACF of residuals
+acf(residuals, main = "Arima Log Residuals")
+# Plot PACF of residuals
+pacf(residuals, main = "Arima Log Residuals")
+```
+```{r}
+summary(exports_arima_model)
+summary(exports_box_cox_arima_model)
+summary(exports_log_arima_model)
+```
+
+
+```{r}
+# Box-Cox transformation with optimal lambda
+exports_box_cox_model = lm(exports_box_cox ~ year)
+plot(exports_box_cox_model,main = "Box-Cox Optimal Lambda")
+acf(exports_box_cox)
+pacf(exports_box_cox)
+
+# Log transformation
+exports_log_model = lm(exports_log ~ year)
+plot(exports_log_model,main = "Log Transformation")
+acf(exports_log)
+pacf(exports_log)
+
+# Square root transformation
+exports_sqrt_model = lm(exports_sqrt ~ year)
+plot(exports_sqrt_model)
+```
+
+HOW DO WE DETERMINE WHICH METHOD WAS MOST EFFEECTIVE FOR STABILIZING VARIANCE?
+Methods for choosing the power λ are available (see Johnson and Wichern, 1992, §4.7) but we do not pursue them here. Often, transformations are also used to improve the approximation to normality or to improve linearity in predicting the value of one series from another.
+I just picked Box-Cox bc of smallest range of values but i don't think that is the correct reasoning.
+Box Cox transformation can improve the accuracy of predictions made using linear regression
+Box-Cox Transformation
+Select the lambda value that Minitab uses to transform the data:
+No transformation: Use your original response data.
+Optimal λ: This option is not available if the batch is a random factor. Use the optimal lambda, which should produce the best fitting transformation. Minitab rounds the optimal lambda to 0.5 or the nearest integer.
+λ = 0 (natural log): Use the natural log of your data.
+λ = 0.5 (square root): Use the square root of your data.
+λ: Use a specified value for lambda. Other common transformations are square (λ = 2), inverse square root (λ = – 0.5), and inverse (λ = – 1). Usually, you should not use a value outside the range of -2 and 2.
+
+SID
+
+The Box-Cox transformation utilizing the optimal value of lambda (-0.3650884) appears to be most effective for stabilizing the variance. However, the time series still appears to have a decreasing trend over time, so we will take the first differences of the Box-Cox optimal lambda time series until the data becomes stationary.
+
+```{r}
+
+# Trying to figure out which transformation results in most stable variance but idk how to determine most stable variance
+# we would want the data that is the most normal to show stable variance
+#I read that these are the conditions for using the multiple regression model:
+  #the residuals of the model are nearly normal,
+  #the variability of the residuals is nearly constant
+  #the residuals are independent, and
+  #each variable is linearly related to the outcome.
+
+par(mfrow = c(2, 3))
+qqnorm(exports, main = 'exports')
+qqline(exports)
+qqnorm(exports_box_cox_half,main = 'exports_box_cox_half')
+qqline(exports_box_cox_half)
+qqnorm(exports_box_cox,main='exports_box_cox')
+qqline(exports_box_cox)
+qqnorm(exports_log,main = 'exports_log')
+qqline(exports_log)
+qqnorm(exports_sqrt,main='exports_sqrt')
+qqline(exports_sqrt)
+```
+
+
+#### Step 3: If the data are non-stationary, take first differences of the data until the data are stationary.
+
+```{r}
+# Cite Source: https://datascienceplus.com/time-series-analysis-in-r-part-2-time-series-transformations/
+
+# Compute first differences of time series utilizing Box-Cox transformation with optimal lambda
+exports_diff <- diff(exports_box_cox)
+
+# Plot first differences 
+plot.ts(exports_diff, xlab = "Time", ylab = "Exports", main = "Box-Cox Optimal Lambda First Differences")
+library(astsa)
+acf2(exports_diff)
+#The following ACF shows exponential decay which which hence indicate sa stationary time series. When it is expoential decay it should look like waves. It;s AR(2) model where lag two the line exceeds the blue line.The ACF shows MA(3) where the third lag reches pass the blue line. We can check of ARIMA(2,1,0),ARIMA(0,1,3)
+# We can also check for stationary of diff through KPSS test like previous
+kpss.test(exports_diff)
+#The pvalue is .1 which is bigger than alpha .05 hence claim that it is stationary after the first Diff.
+```
+Mean appears to be constant and close to zero. Variance appears to be relatively stable across time. Decreasing trend appears to be removed by taking first differences of the Box-Cox optimal lambda time series. Time series appears to be stationary. Now we can proceed with examining the ACF and PACF of the time series, and initiate the process of determining the best model
+
+#### Step 4: Examine the ACF/PACF: MA or AR for the difference?
+```{r}
+library(astsa)
+acf2(exports_diff)
+#The following ACF shows exponential decay which which hence indicate sa stationary time series. When it is expoential decay it should look like waves. It's AR(2) model where lag two the line exceeds the blue line.The ACF shows MA(3) where the third lag reches pass the blue line. We can check of ARIMA(2,1,0),ARIMA(0,1,3)
+
+
+```
+
+#### Step 5: Try your chosen model(s) and use the AIC/BIC to search for a better model.
+
+AR(1)
+```{r}
+# Fit AR(1) model to the data
+ar1_model <- arima(exports_diff, order = c(1, 0, 0))
+
+# Summary of the AR(1) model
+summary(ar1_model)
+
+# Plot the original data and the fitted values
+plot(exports_diff, type = "l", col = "blue", xlab = "Time", ylab = "Value", main = "Original Data vs. Fitted AR(1) Model")
+lines(fitted(ar1_model), col = "red")
+
+# Add a legend
+legend("topright", legend = c("Original Data", "Fitted AR(1) Model"), col = c("blue", "red"), lty = 1)
+
+```
+
+AR(2)
+```{r}
+# Fit AR(2) model to the data
+ar2_model <- arima(exports_diff, order = c(2, 0, 0))
+
+# Summary of the AR(2) model
+summary(ar2_model)
+
+# Plot the original data and the fitted values
+plot(exports_diff, type = "l", col = "blue", xlab = "Time", ylab = "Value", main = "Original Data vs. Fitted AR(2) Model")
+lines(fitted(ar2_model), col = "red")
+
+# Add a legend
+legend("topright", legend = c("Original Data", "Fitted AR(2) Model"), col = c("blue", "red"), lty = 1)
+
+```
+
+
+MA(1)
+```{r}
+# Fit MA(1) model to the data
+ma1_model <- arima(exports_diff, order = c(0, 0, 1))
+
+# Summary of the MA(1) model
+summary(ma1_model)
+
+# Plot the original data and the fitted values
+plot(exports_diff, type = "l", col = "blue", xlab = "Time", ylab = "Value", main = "Original Data vs. Fitted MA(1) Model")
+lines(fitted(ma1_model), col = "red")
+
+# Add a legend
+legend("topright", legend = c("Original Data", "Fitted MA(1) Model"), col = c("blue", "red"), lty = 1)
+
+```
+MA(2)
+```{r}
+# Fit MA(2) model to the data
+ma2_model <- arima(exports_diff, order = c(0, 0, 2))
+
+# Summary of the MA(2) model
+summary(ma2_model)
+
+# Plot the original data and the fitted values
+plot(exports_diff, type = "l", col = "blue", xlab = "Time", ylab = "Value", main = "Original Data vs. Fitted MA(2) Model")
+lines(fitted(ma2_model), col = "red")
+
+# Add a legend
+legend("topright", legend = c("Original Data", "Fitted MA(2) Model"), col = c("blue", "red"), lty = 1)
+
+```
+
+MA(3)
+```{r}
+# Fit MA(3) model to the data
+ma3_model <- arima(exports_diff, order = c(0, 0, 3))
+
+# Summary of the MA(3) model
+summary(ma3_model)
+
+# Plot the original data and the fitted values
+plot(exports_diff, type = "l", col = "blue", xlab = "Time", ylab = "Value", main = "Original Data vs. Fitted MA(3) Model")
+lines(fitted(ma3_model), col = "red")
+
+# Add a legend
+legend("topright", legend = c("Original Data", "Fitted MA(3) Model"), col = c("blue", "red"), lty = 1)
+
+```
+
+AIC/BIC
+```{r}
+# Compute AIC and BIC values for each model
+aic_values <- c(AIC(ar1_model), AIC(ma1_model), AIC(ar2_model), AIC(ma2_model), AIC(ma3_model))
+bic_values <- c(BIC(ar1_model), BIC(ma1_model), BIC(ar2_model), BIC(ma2_model), BIC(ma3_model))
+
+# Create a data frame to organize the results
+results <- data.frame(Model = c("AR(1)", "MA(1)", "AR(2)", "MA(2)", "MA"), AIC = aic_values, BIC = bic_values)
+
+# Calculate the absolute difference between AIC and BIC
+results$Abs_Diff <- abs(results$AIC - results$BIC)
+
+# Print the results
+print(results)
+
+```
+
+Using auto.arima() function
+```{r}
+# Fit an ARIMA model automatically
+auto_arima_model <- auto.arima(exports_diff)
+
+# Summary of the automatically selected ARIMA model
+summary(auto_arima_model)
+
+# Plot the original data and the fitted values from the automatically selected ARIMA model
+plot(exports_diff, type = "l", col = "blue", xlab = "Time", ylab = "Value", main = "Original Data vs. Fitted ARIMA Model")
+lines(fitted(auto_arima_model), col = "red")
+
+# Add a legend
+legend("topright", legend = c("Original Data", "Fitted ARIMA Model"), col = c("blue", "red"), lty = 1)
+```
+
+```{r}
+# Compute AIC and BIC values for each model
+aic_values <- c(AIC(arima(exports,order=c(2,1,0))), AIC(arima(exports,order=c(2,1,3))), AIC(arima(exports,order=c(0,1,3))), AIC(arima(exports,order=c(0,1,2))),AIC(Arima(exports,order=c(2,1,0),include.drift=TRUE)),AIC(Arima(exports,order=c(2,1,3),include.drift=TRUE)),AIC(Arima(exports,order=c(0,1,3),include.drift=TRUE)),AIC(Arima(exports,order=c(0,1,2),include.drift=TRUE)))
+bic_values <- c(BIC(arima(exports,order=c(2,1,0))), BIC(arima(exports,order=c(2,1,3))), BIC(arima(exports,order=c(0,1,3))), BIC(arima(exports,order=c(0,1,2))),BIC(Arima(exports,order=c(2,1,0),include.drift=TRUE)),BIC(Arima(exports,order=c(2,1,3),include.drift=TRUE)),BIC(Arima(exports,order=c(0,1,3),include.drift=TRUE)),BIC(Arima(exports,order=c(0,1,2),include.drift=TRUE)))
+
+# Create a data frame to organize the results
+results <- data.frame(Model = c("ARMA(2,1,0)", "ARMA(2,1,3)", "ARMA(0,1,3)","ARMA(0,1,2)","ARMA(2,1,0) Drift", "ARMA(2,1,3) Drift", "ARMA(0,1,3) Drift","ARMA(0,1,2) Drift"), AIC = aic_values, BIC = bic_values)
+
+# Calculate the absolute difference between AIC and BIC
+results$Abs_Diff <- abs(results$AIC - results$BIC)
+results
+
+
+log.exports=log(exports)
+log.exports
+
+# Finds the coefficients/log likelihood
+log.export.ma1=Arima(exports,order=c(2,1,0),include.drift=TRUE)
+ma1.res=log.export.ma1$residuals
+log.export.ma1
+
+
+```
+
+#### Step 6: Check the residuals from your chosen model by plotting the ACF of the residuals and doing a portmanteau test of the residuals. If they do not look like white noise, try a modified model.
+
+```{r}
+
+
+log.exports=log(exports)
+log.exports
+
+# Finds the coefficients/log likelihood
+log.export.ma1=Arima(exports,order=c(2,1,0),include.drift=TRUE)
+ma1.res=log.export.ma1$residuals
+log.export.ma1
+
+log.exports=log(exports)
+log.exports
+
+#ARIMA(2,1,0) 
+arma_210=Arima(exports,order=c(2,1,0))
+arma_210.res=arma_210$residuals
+arma_210.res
+log.export.ma1
+sarima(exports, 2, 1, 0, no.constant=TRUE)
+checkresiduals(arma_210)
+autoplot(arma_210)
+
+#ARIMA(2,1,0) with drift 
+arma_210_d=Arima(exports,order=c(2,1,0),include.drift=TRUE)
+arma_210_d.res=arma_210_d$residuals
+arma_210_d.res
+log.export.ma1
+sarima(exports, 2, 1, 0, no.constant=TRUE)
+Box.test(arma_210_d.res,type = "Ljung-Box")
+checkresiduals(arma_210_d)
+autoplot(arma_210_d)
+
+#ARIMA(2,1,3) with drift 
+arma_213_d=Arima(exports,order=c(2,1,3),include.drift=TRUE)
+arma_213_d.res=arma_213_d$residuals
+arma_213_d.res
+log.export.ma1
+sarima(exports, 2, 1, 3, no.constant=TRUE)
+Box.test(arma_213_d.res,type = "Ljung-Box")
+checkresiduals(arma_213_d)
+autoplot(arma_213_d)
+
+#ARIMA(2,1,3) 
+arma_213=Arima(exports,order=c(2,1,3))
+arma_213.res=arma_213$residuals
+arma_213.res
+log.export.ma1
+sarima(exports, 2, 1, 3, no.constant=TRUE)
+checkresiduals(arma_213)
+autoplot(arma_213)
+
+
+
+#ARIMA(0,1,2) with drift 
+arma_012_d=Arima(exports,order=c(0,1,2),include.drift=TRUE)
+arma_012_d.res=arma_012_d$residuals
+arma_012_d.res
+log.export.ma1
+sarima(exports, 0, 1, 2, no.constant=TRUE)
+Box.test(arma_012_d.res,type = "Ljung-Box")
+checkresiduals(arma_012_d)
+autoplot(arma_012_d)
+
+#ARIMA(0,1,2) 
+arma_012=Arima(exports,order=c(0,1,2))
+arma_012.res=arma_012$residuals
+arma_012.res
+log.export.ma1
+sarima(exports, 0, 1, 2, no.constant=TRUE)
+checkresiduals(arma_012)
+autoplot(arma_012)
+```
+
+#### Step 7: Once the residuals look like white noise, calculate forecasts.
+
+```{r}
+library(forecast)
+forecast(arma_210)
+autoplot(forecast(arma_210))
+```
