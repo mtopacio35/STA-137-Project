@@ -1,1 +1,2 @@
 # STA-137-Project
+Incorporates various statistical methods, chiefly time series analysis to delve into the Central African Republic Exports time series data from 1960-2017. ARIMA model is built to analyze data and examining the ACF and PACF of the data, making necessary transformations to make the data resemble a white noise model. From there, we forecast the future outcomes of the exports using the forecast function in R.
